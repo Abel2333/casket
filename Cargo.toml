@@ -1,0 +1,18 @@
+[package]
+name = "casket"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.102"
+argon2 = "0.5.3"
+async-trait = "0.1.89"
+chrono = "0.4.44"
+crossterm = "0.29.0"
+rand = "0.10.1"
+ratatui = "0.30.0"
+serde = "1.0.228"
+serde_json = "1.0.149"
+sqlx = { version = "0.8.6", features = ["macros", "runtime-tokio-native-tls", "sqlite"] }
+tokio = { version = "1.51.1", features = ["full"] }
+uuid = { version = "1.23.0", features = ["serde", "v7"] }
