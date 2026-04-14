@@ -1,19 +1,20 @@
 use crate::{
-    infra::crypto::{Argon2ParamsConfig, KeyDeriver, MasterKey, VaultMetadata},
+    infra::crypto::{KeyDeriver, MasterKey, VaultMetadata, VaultMetadataFactory},
     storage::traits::VaultMetadataRepository,
 };
 use anyhow::{Result, anyhow, bail};
-use rand::RngExt;
 
-pub struct VaultService<VR, KD> {
+pub struct VaultService<VR, KD, VF> {
     pub metadata_repo: VR,
     pub key_deriver: KD,
+    pub metadata_factory: VF,
 }
 
-impl<VR, KD> VaultService<VR, KD>
+impl<VR, KD, VF> VaultService<VR, KD, VF>
 where
     VR: VaultMetadataRepository,
     KD: KeyDeriver,
+    VF: VaultMetadataFactory,
 {
     pub async fn is_initialized(&self) -> Result<bool> {
         Ok(self.metadata_repo.get().await?.is_some())
@@ -24,17 +25,7 @@ where
             bail!("vault already initialized");
         }
 
-        let metadata = VaultMetadata {
-            salt: generate_salt(),
-            key_version: 1,
-            kdf_algorithm: "argon2id".to_string(),
-            kdf_params_json: serde_json::to_string(&Argon2ParamsConfig {
-                memory_cost: 19_456,
-                iterations: 2,
-                parallelism: 1,
-            })?,
-        };
-
+        let metadata = self.metadata_factory.new_metadata()?;
         let key = self.key_deriver.derive_key(password, &metadata)?;
 
         self.metadata_repo.save(&metadata).await?;
@@ -53,13 +44,6 @@ where
 
         Ok(key)
     }
-}
-
-fn generate_salt() -> Vec<u8> {
-    let mut salt = vec![0u8; 16];
-
-    rand::rng().fill(&mut salt);
-    salt
 }
 
 #[cfg(test)]
@@ -86,6 +70,8 @@ mod tests {
 
     struct FakeKeyDeriver;
 
+    struct FakeMetadataFactory;
+
     impl KeyDeriver for FakeKeyDeriver {
         fn derive_key(
             &self,
@@ -106,14 +92,27 @@ mod tests {
         }
     }
 
+    impl VaultMetadataFactory for FakeMetadataFactory {
+        fn new_metadata(&self) -> anyhow::Result<VaultMetadata> {
+            Ok(VaultMetadata {
+                salt: vec![1, 2, 3, 4],
+                key_version: 1,
+                kdf_algorithm: "argon2id".to_string(),
+                kdf_params_json: r#"{"memory_cost":19456,"iterations":2,"parallelism":1}"#
+                    .to_string(),
+            })
+        }
+    }
+
     fn make_service(
         metadata: Option<VaultMetadata>,
-    ) -> VaultService<FakeMetadataRepo, FakeKeyDeriver> {
+    ) -> VaultService<FakeMetadataRepo, FakeKeyDeriver, FakeMetadataFactory> {
         VaultService {
             metadata_repo: FakeMetadataRepo {
                 metadata: Mutex::new(metadata),
             },
             key_deriver: FakeKeyDeriver,
+            metadata_factory: FakeMetadataFactory,
         }
     }
 

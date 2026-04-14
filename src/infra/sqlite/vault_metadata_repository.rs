@@ -91,7 +91,7 @@ mod tests {
             salt: vec![1, 2, 3, 4],
             key_version: 1,
             kdf_algorithm: "argon2id".to_string(),
-            kdf_params_json: r#"{"memory_cost": 19456, "iterations": 2}"#.to_string(),
+            kdf_params_json: r#"{"memory_cost":19456,"iterations":2,"parallelism":1}"#.to_string(),
         };
 
         repo.save(&expected).await?;

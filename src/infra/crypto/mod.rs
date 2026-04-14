@@ -1,6 +1,5 @@
 pub mod key_deriver;
 use crate::domain::secret::EncryptedBlob;
-pub use key_deriver::Argon2ParamsConfig;
 pub struct MasterKey(pub [u8; 32]);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -9,6 +8,10 @@ pub struct VaultMetadata {
     pub key_version: i32,
     pub kdf_algorithm: String,
     pub kdf_params_json: String,
+}
+
+pub trait VaultMetadataFactory {
+    fn new_metadata(&self) -> anyhow::Result<VaultMetadata>;
 }
 
 pub trait KeyDeriver {

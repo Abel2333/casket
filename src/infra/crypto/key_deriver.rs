@@ -1,14 +1,37 @@
 use anyhow::{Result, anyhow, bail};
 use argon2::{Argon2, Params};
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
-use crate::infra::crypto::{KeyDeriver, MasterKey, VaultMetadata};
+use crate::infra::crypto::{KeyDeriver, MasterKey, VaultMetadata, VaultMetadataFactory};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Argon2ParamsConfig {
     pub memory_cost: u32,
     pub iterations: u32,
     pub parallelism: u32,
+}
+
+pub struct Argon2VaultMetadataFactory;
+
+impl VaultMetadataFactory for Argon2VaultMetadataFactory {
+    fn new_metadata(&self) -> anyhow::Result<VaultMetadata> {
+        let mut salt = vec![0u8; 16];
+        rand::rng().fill(&mut salt);
+
+        let params = Argon2ParamsConfig {
+            memory_cost: 19_456,
+            iterations: 2,
+            parallelism: 1,
+        };
+
+        Ok(VaultMetadata {
+            salt,
+            key_version: 1,
+            kdf_algorithm: "argon2id".to_string(),
+            kdf_params_json: serde_json::to_string(&params)?,
+        })
+    }
 }
 
 pub struct Argon2KeyDeriver;
