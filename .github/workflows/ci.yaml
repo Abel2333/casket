@@ -1,6 +1,6 @@
-name: Casket Gitea CI
-run-name: ${{ gitea.actor }} runs CI for casket
-on: 
+name: Casket GitHub CI
+run-name: ${{ github.actor }} runs CI for casket
+on:
   pull_request:
     branches:
       - master
