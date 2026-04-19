@@ -1,4 +1,7 @@
-use crate::domain::secret::SecretDraftField;
+use crate::domain::{
+    secret::{DecryptedSecretField, SecretDraftField},
+    tag::Tag,
+};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
@@ -40,4 +43,10 @@ pub struct EntryFilter {
     pub include_archived: bool,
     pub search_term: Option<String>,
     pub tag: Option<String>,
+}
+
+pub struct EntryDetail {
+    pub entry: Entry,
+    pub tags: Vec<Tag>,
+    pub secret_fields: Vec<DecryptedSecretField>,
 }

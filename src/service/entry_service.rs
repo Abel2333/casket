@@ -4,8 +4,8 @@ use uuid::Uuid;
 
 use crate::{
     domain::{
-        entry::{Entry, EntryDraft, EntryId},
-        secret::{SecretDraftField, SecretField},
+        entry::{Entry, EntryDetail, EntryDraft, EntryId},
+        secret::{DecryptedSecretField, EncryptedBlob, SecretDraftField, SecretField},
     },
     infra::crypto::{Encryptor, MasterKey},
     storage::traits::{EntryRepository, SecretRepository, TagRepository},
@@ -119,6 +119,51 @@ where
 
         Ok(())
     }
+
+    pub async fn get_detail(
+        &self,
+        entry_id: EntryId,
+        key: Option<&MasterKey>,
+    ) -> Result<EntryDetail> {
+        let entry = self
+            .entries
+            .get(entry_id)
+            .await?
+            .ok_or_else(|| anyhow!("Entry not found"))?;
+
+        let tags = self.tags.list_for_entry(entry_id).await?;
+        let secret_fields = self.secrets.list_for_entry(entry_id).await?;
+
+        let decrypted_secret_fields = if secret_fields.is_empty() {
+            vec![]
+        } else {
+            let key = key.ok_or_else(|| anyhow!("master key required for secret fields"))?;
+
+            secret_fields
+                .into_iter()
+                .map(|field| {
+                    let blob = EncryptedBlob {
+                        ciphertext: field.ciphertext,
+                        nonce: field.nonce,
+                    };
+
+                    let plaintext = self.encryptor.decrypt(&blob, key)?;
+                    let value = String::from_utf8(plaintext)?;
+
+                    Ok(DecryptedSecretField {
+                        name: field.name,
+                        value,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?
+        };
+
+        Ok(EntryDetail {
+            entry,
+            tags,
+            secret_fields: decrypted_secret_fields,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -201,7 +246,17 @@ mod tests {
         }
 
         async fn list_for_entry(&self, _entry_id: EntryId) -> Result<Vec<Tag>> {
-            Ok(vec![])
+            Ok(self
+                .tags
+                .lock()
+                .unwrap()
+                .iter()
+                .cloned()
+                .map(|name| Tag {
+                    id: Uuid::now_v7(),
+                    name,
+                })
+                .collect())
         }
 
         async fn list_all(&self) -> Result<Vec<Tag>> {
@@ -223,7 +278,12 @@ mod tests {
         }
 
         fn decrypt(&self, blob: &EncryptedBlob, _key: &MasterKey) -> Result<Vec<u8>> {
-            Ok(blob.ciphertext.clone())
+            let prefix = b"enc:";
+            if !blob.ciphertext.starts_with(prefix) {
+                return Err(anyhow!("invalid ciphertext"));
+            }
+
+            Ok(blob.ciphertext[prefix.len()..].to_vec())
         }
     }
 
@@ -301,6 +361,75 @@ mod tests {
         }]);
 
         let result = service.create_from_draft(draft, None).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn get_detail_without_secrets() -> Result<()> {
+        let service = make_service();
+        let draft = sample_draft(vec![]);
+
+        let entry_id = service.create_from_draft(draft, None).await?;
+        let detail = service.get_detail(entry_id, None).await?;
+
+        assert_eq!(detail.entry.id, entry_id);
+        assert_eq!(detail.entry.title, "Test");
+        assert_eq!(detail.entry.body, "Body");
+        assert!(detail.secret_fields.is_empty());
+
+        let tag_names = detail
+            .tags
+            .into_iter()
+            .map(|tag| tag.name)
+            .collect::<Vec<_>>();
+        assert_eq!(tag_names, vec!["alpha".to_string(), "beta".to_string()]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn get_detail_with_secrets() -> Result<()> {
+        let service = make_service();
+        let draft = sample_draft(vec![SecretDraftField {
+            name: "password".to_string(),
+            value: "super-secret".to_string(),
+        }]);
+
+        let key = MasterKey([7u8; 32]);
+
+        let entry_id = service.create_from_draft(draft, Some(&key)).await?;
+        let detail = service.get_detail(entry_id, Some(&key)).await?;
+
+        assert_eq!(detail.entry.id, entry_id);
+        assert_eq!(detail.secret_fields.len(), 1);
+        assert_eq!(detail.secret_fields[0].name, "password");
+        assert_eq!(detail.secret_fields[0].value, "super-secret");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn get_detail_without_key() -> Result<()> {
+        let service = make_service();
+        let draft = sample_draft(vec![SecretDraftField {
+            name: "password".to_string(),
+            value: "super-secret".to_string(),
+        }]);
+
+        let key = MasterKey([7u8; 32]);
+        let entry_id = service.create_from_draft(draft, Some(&key)).await?;
+
+        let result = service.get_detail(entry_id, None).await;
+
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn get_detail_returns_error_when_entry_is_missing() {
+        let service = make_service();
+        let result = service.get_detail(Uuid::now_v7(), None).await;
 
         assert!(result.is_err());
     }
