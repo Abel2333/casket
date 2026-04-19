@@ -28,6 +28,13 @@ impl Encryptor for XChaCha20Poly1305Encryptor {
     }
 
     fn decrypt(&self, blob: &EncryptedBlob, key: &super::MasterKey) -> anyhow::Result<Vec<u8>> {
+        if blob.nonce.len() != 24 {
+            return Err(anyhow!(
+                "nonce length should equal to 24, not {}",
+                blob.nonce.len()
+            ));
+        }
+
         let cipher = XChaCha20Poly1305::new((&key.0).into());
 
         let nonce = XNonce::from_slice(&blob.nonce);
