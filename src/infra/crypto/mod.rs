@@ -1,5 +1,7 @@
+pub mod encryptor;
 pub mod key_deriver;
 use crate::domain::secret::EncryptedBlob;
+pub use encryptor::XChaCha20Poly1305Encryptor;
 pub struct MasterKey(pub [u8; 32]);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
