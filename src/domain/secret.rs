@@ -25,3 +25,9 @@ pub struct EncryptedBlob {
     pub ciphertext: Vec<u8>,
     pub nonce: Vec<u8>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecryptedSecretField {
+    pub name: String,
+    pub value: String,
+}
