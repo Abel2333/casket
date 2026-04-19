@@ -312,17 +312,22 @@ into:
 Suggested methods:
 
 ```rust
-pub struct EntryService<ER, SR, TR> {
+pub struct EntryService<ER, SR, TR, ENC> {
     pub entries: ER,
     pub secrets: SR,
     pub tags: TR,
+    pub encryptor: ENC,
 }
 
-impl<ER, SR, TR> EntryService<ER, SR, TR> {
-    pub fn create_from_draft(&self, draft: EntryDraft, key: Option<&MasterKey>) -> Result<EntryId>;
-    pub fn update_from_draft(&self, draft: EntryDraft, key: Option<&MasterKey>) -> Result<()>;
-    pub fn get_detail(&self, entry_id: EntryId, key: Option<&MasterKey>) -> Result<EntryDetail>;
-    pub fn list(&self, filter: &EntryFilter) -> Result<Vec<EntryListItem>>;
+impl<ER, SR, TR, ENC> EntryService<ER, SR, TR, ENC> {
+    pub async fn create_from_draft(&self, draft: EntryDraft, key:
+Option<&MasterKey>) -> Result<EntryId>;
+    pub async fn update_from_draft(&self, draft: EntryDraft, key:
+Option<&MasterKey>) -> Result<()>;
+    pub async fn get_detail(&self, entry_id: EntryId, key: Option<&MasterKey>)
+-> Result<EntryDetail>;
+    pub async fn list(&self, filter: &EntryFilter) ->
+Result<Vec<EntryListItem>>;
 }
 ```
 
@@ -334,8 +339,17 @@ This file should handle only the vault lifecycle:
 
 - initialize
 - unlock
-- lock
 - check whether the vault is initialized
+
+Clarification on `lock`:
+
+- do not force a fake `lock()` method into `VaultService` just to match the
+  outline
+- in the current design, locking is primarily an application-state concern
+- locking means:
+  - drop the in-memory `MasterKey`
+  - switch `VaultState` from `Unlocked` to `Locked`
+- keep `VaultService` focused on initialization and unlock flows
 
 Suggested methods:
 
@@ -561,6 +575,15 @@ Done when:
 - the persistence layer works without the TUI
 
 This step is important. Do not skip it.
+
+Current planning note:
+
+- after the vault and encryptor groundwork, finish the SQLite repository implementations before moving into `AppState`
+- specifically:
+  - `EntryRepository`
+  - `TagRepository`
+  - `SecretRepository`
+- service tests with fakes are useful, but they do not replace real repository validation
 
 ## 3.6 Step Six: Implement the Vault
 
