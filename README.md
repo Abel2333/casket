@@ -16,22 +16,30 @@ Implemented:
   - first-time initialization
   - unlock by re-deriving the master key
 - Argon2-based key derivation driven by stored vault metadata
+- XChaCha20Poly1305-based encryption and decryption
+- `EntryService` support for:
+  - draft creation
+  - draft update
+  - detail loading with secret-field decryption
 - unit tests for repository, key derivation, and vault service
 
 Not implemented yet:
 
-- field encryption and decryption
-- entry detail loading with decrypted secret fields
+- SQLite implementations for:
+  - `EntryRepository`
+  - `TagRepository`
+  - `SecretRepository`
+- entry list loading through real repositories
 - app state and TUI screens
 - full application wiring in `main.rs`
 
 ## Project Structure
 
-- [src/domain](/home/abel/Code/casket/src/domain): core data types
-- [src/storage](/home/abel/Code/casket/src/storage): repository traits
-- [src/infra/sqlite](/home/abel/Code/casket/src/infra/sqlite): SQLite schema and repository implementations
-- [src/infra/crypto](/home/abel/Code/casket/src/infra/crypto): vault metadata and key derivation
-- [src/service](/home/abel/Code/casket/src/service): service-layer orchestration
+- [src/domain](src/domain): core data types
+- [src/storage](src/storage): repository traits
+- [src/infra/sqlite](src/infra/sqlite): SQLite schema and repository implementations
+- [src/infra/crypto](src/infra/crypto): vault metadata and key derivation
+- [src/service](src/service): service-layer orchestration
 
 ## Vault Model
 
@@ -66,13 +74,12 @@ Run the current binary:
 cargo run
 ```
 
-At the moment the binary only contains placeholder startup code in [main.rs](/home/abel/Code/casket/src/main.rs).
+At the moment the binary only contains placeholder startup code in [main.rs](/src/main.rs).
 
 ## Next Steps
 
-- refactor vault initialization behind a `VaultMetadataFactory`
-- move default Argon2 metadata construction out of `VaultService`
-- implement `Encryptor`
-- connect encrypted secret fields to `EntryService`
-- define entry detail loading and decryption flow
+- implement SQLite repositories for entries, tags, and secret fields
+- add real repository validation without the TUI
+- add entry list loading through `EntryService`
+- handle vault locking in `AppState` by dropping the in-memory key
 - introduce app state and the first TUI screens
